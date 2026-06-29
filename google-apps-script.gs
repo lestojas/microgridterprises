@@ -301,7 +301,19 @@ function doPost(e) {
           const i = rowIndex;
           
           const serverDateStr = data[i][timestampColIdx];
-          const serverDate = serverDateStr ? new Date(serverDateStr).getTime() : 0;
+          let serverDate = 0;
+          if (serverDateStr) {
+            let ds = "";
+            if (serverDateStr instanceof Date) {
+              ds = Utilities.formatDate(serverDateStr, Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss");
+            } else {
+              ds = String(serverDateStr).trim();
+            }
+            if (!ds.includes('GMT') && !ds.includes('Z')) {
+              ds += " GMT+0800";
+            }
+            serverDate = new Date(ds).getTime();
+          }
           
           // Check for conflict: Server has newer data and client is not force-pushing
           if (serverDate > 0 && baseDate > 0 && serverDate > baseDate && !hh.force_push) {
