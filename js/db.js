@@ -245,7 +245,7 @@ export async function pushSyncData(syncUrl, user) {
   
   if (events.length === 0 && pendingHH.length === 0 && updatedHH.length === 0) return 0; // Nothing to sync
 
-  const lastSyncStr = localStorage.getItem('lastSyncTimestamp');
+  const lastSyncStr = localStorage.getItem('last_sync_time');
   const base_timestamp = lastSyncStr ? lastSyncStr : new Date('2000-01-01').toISOString();
 
   const payload = {
