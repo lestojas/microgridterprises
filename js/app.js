@@ -26,6 +26,22 @@ import { renderQRGenerator } from '../pages/qr-generator.js';
 import { renderSyncPage } from '../pages/sync-status.js';
 import { renderUserLogin } from '../pages/user-login.js';
 
+// ─── PWA Service Worker Registration ───────────────────────
+import { registerSW } from 'virtual:pwa-register';
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    showToast('App update available! Applying changes...', 'success');
+    // Force reload after a brief delay to apply new scripts
+    setTimeout(() => {
+      updateSW(true);
+    }, 1500);
+  },
+  onOfflineReady() {
+    console.log('PWA is ready to work offline');
+  },
+});
+
 // ─── App Shell ───────────────────────────────────────────────
 /**
  * The "app shell" is the persistent UI frame — header at top, 
