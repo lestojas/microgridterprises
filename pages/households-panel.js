@@ -98,7 +98,7 @@ export async function renderHouseholdsPanel(container) {
       </div>
       <div class="form-group mb-0">
         <label class="form-label">View Household Profile</label>
-        <div id="hh-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-main);">
+        <div id="hh-list" style="max-height: 145px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-main);">
           ${hhOptions}
         </div>
       </div>
