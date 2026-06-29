@@ -71,12 +71,8 @@ function renderAppShell() {
   app.innerHTML = `
     <!-- Top Header Bar -->
     <header class="app-header">
-      <div class="header-left" style="cursor: pointer; flex: 1; min-width: 0;" onclick="window.location.hash=''">
+      <div class="header-left" style="cursor: pointer;" onclick="window.location.hash=''">
         <img src="/mge-logo.png" alt="MGE Logo" class="header-logo" />
-        <div style="flex: 1; min-width: 0;">
-          <h1 class="header-title truncate">MICROGRIDTERPRISES</h1>
-          <span class="header-subtitle truncate">HOUSEHOLD MONITORING TOOL</span>
-        </div>
       </div>
       <div class="header-right">
         <div class="header-sync-info">
