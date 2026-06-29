@@ -13,7 +13,7 @@ export default defineConfig({
       },
       manifest: {
         name: 'MICROGRIDTERPRISES Household Monitoring Tool',
-        short_name: 'MGE Monitor',
+        short_name: 'Microgridterprises',
         description: 'Offline QR-based household monitoring for renewable energy deployment',
         theme_color: '#0a0e17',
         background_color: '#0a0e17',
