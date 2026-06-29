@@ -431,21 +431,13 @@ window.addEventListener('hashchange', async () => {
 // Start the app when the DOM is ready
 document.addEventListener('DOMContentLoaded', init);
 
-// Register the PWA service worker
+// Register the PWA service worker safely
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // FORCE UNREGISTER OLD SERVICE WORKERS to ensure the latest config.js is loaded
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for(let registration of registrations) {
-        registration.unregister();
-        console.log("Service Worker Unregistered to force update.");
-      }
-    });
-
     navigator.serviceWorker.register('/sw.js').then(reg => {
-      reg.update(); // Force update the new one
-    }).catch(() => {
-      console.log('Service worker not available (dev mode or unsupported)');
+      console.log('Service worker registered automatically.');
+    }).catch(err => {
+      console.log('Service worker registration failed:', err);
     });
   });
 }
