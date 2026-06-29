@@ -1,0 +1,19 @@
+{
+  "name": "sitio-tibucag-monitor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Offline QR Household Monitoring System for Sitio Tibucag",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dexie": "^4.4.4",
+    "html5-qrcode": "^2.3.8",
+    "qr-code-styling": "^1.9.2",
+    "vite": "^8.0.16",
+    "vite-plugin-pwa": "^1.3.0"
+  }
+}
