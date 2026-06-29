@@ -70,20 +70,34 @@ export async function pullMasterData(url) {
   await db.transaction('rw', db.households, db.household_members, db.authorized_users, db.inspection_events, async () => {
     // Clear existing static data
     // Don't overwrite households that currently have a conflict pending resolution
-    const conflictedHouseholds = await db.households.filter(h => h.needs_sync === 1 && h.conflict_data).toArray();
-    const conflictedIds = new Set(conflictedHouseholds.map(h => h.household_id));
-  
-    const householdsToBulkAdd = data.households.filter(h => !conflictedIds.has(h.household_id));
+    const localConflicts = await db.conflict_queue.toArray();
+    const conflictedIds = new Set(localConflicts.map(c => c.household_id));
+
+    // We must PRESERVE the local version of conflicted households and members!
+    // Since we are clearing the tables, fetch the local versions first.
+    const existingLocalHouseholds = await db.households.toArray();
+    const localConflictedHouseholds = existingLocalHouseholds.filter(h => conflictedIds.has(h.household_id));
+    
+    const serverHouseholdsToBulkAdd = data.households.filter(h => !conflictedIds.has(h.household_id));
+    const householdsToBulkAdd = [...serverHouseholdsToBulkAdd, ...localConflictedHouseholds];
 
     await db.households.clear();
     await db.households.bulkAdd(householdsToBulkAdd);
-  
-    // Re-insert the conflicted ones
-    if (conflictedHouseholds.length > 0) {
-      await db.households.bulkAdd(conflictedHouseholds);
-    }
+    
+    // Also update members, dropdowns, etc., preserving local members for conflicted households
+    const existingLocalMembers = await db.household_members.toArray();
+    const localConflictedMembers = existingLocalMembers.filter(m => conflictedIds.has(m.household_id));
+    
+    const serverMembersToBulkAdd = (data.members || []).filter(m => !conflictedIds.has(m.household_id));
+    const membersToBulkAdd = [...serverMembersToBulkAdd, ...localConflictedMembers];
 
     await db.household_members.clear();
+    
+    // Insert new data
+    if (membersToBulkAdd.length > 0) {
+      await db.household_members.bulkAdd(membersToBulkAdd);
+    }
+
     await db.authorized_users.clear();
 
     // Clear locally synced events, preserving offline unsynced ones
