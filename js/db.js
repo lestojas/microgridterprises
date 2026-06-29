@@ -241,7 +241,6 @@ export async function pushSyncData(syncUrl, user) {
 
   for (let i = 0; i < updatedHH.length; i++) {
     updatedHH[i].members = await db.household_members.where('household_id').equals(updatedHH[i].household_id).toArray();
-    updatedHH[i].force_push = true; // Bypass server conflict checks entirely
   }
   
   if (events.length === 0 && pendingHH.length === 0 && updatedHH.length === 0) return 0; // Nothing to sync
