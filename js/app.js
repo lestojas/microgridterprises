@@ -42,6 +42,17 @@ const updateSW = registerSW({
   },
 });
 
+// ─── PWA Install Prompt ────────────────────────────────────────
+window.deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  // Stash the event so it can be triggered later.
+  window.deferredPrompt = e;
+  // Dispatch a custom event
+  window.dispatchEvent(new CustomEvent('pwa-install-available'));
+});
+
 // ─── App Shell ───────────────────────────────────────────────
 /**
  * The "app shell" is the persistent UI frame — header at top, 

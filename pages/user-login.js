@@ -43,6 +43,18 @@ export async function renderUserLogin(container) {
           <button type="submit" id="login-btn" class="btn btn-primary btn-block">Continue</button>
         </form>
 
+        <div id="pwa-install-container" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px; text-align: center;">
+          <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">For the best experience, install this app on your device.</p>
+          <button id="pwa-install-btn" class="btn btn-secondary btn-block" style="background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-color); display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Add to Home Screen
+          </button>
+        </div>
+
       </div>
       <p class="login-footer" style="text-align:center; margin-top:30px; font-size:12px; color:var(--text-tertiary);">v1.1 &middot; Offline-first PWA</p>
     </div>
@@ -51,11 +63,42 @@ export async function renderUserLogin(container) {
   const loginForm = document.getElementById('login-form');
   const warningBox = document.getElementById('login-warning');
   const warningText = document.getElementById('login-warning-text');
+  const installContainer = document.getElementById('pwa-install-container');
+  const installBtn = document.getElementById('pwa-install-btn');
 
   // Silently trigger a background sync when the login page loads
   if (isOnline()) {
     pullMasterData(CONFIG.SYNC_URL).catch(() => { /* ignore silent failure */ });
   }
+
+  // --- PWA Install Logic ---
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  function showInstallPromotion() {
+    installContainer.style.display = 'block';
+  }
+
+  if (window.deferredPrompt) {
+    showInstallPromotion();
+  } else if (isIOS && !isStandalone) {
+    showInstallPromotion();
+  } else {
+    window.addEventListener('pwa-install-available', showInstallPromotion);
+  }
+
+  installBtn.addEventListener('click', async () => {
+    if (window.deferredPrompt) {
+      window.deferredPrompt.prompt();
+      const { outcome } = await window.deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installContainer.style.display = 'none';
+        window.deferredPrompt = null;
+      }
+    } else if (isIOS) {
+      showToast('Tap the Share button at the bottom and select "Add to Home Screen"', 'info');
+    }
+  });
 
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
