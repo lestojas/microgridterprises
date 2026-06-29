@@ -354,47 +354,61 @@ export async function renderHouseholdsPanel(container) {
 
   // Setup Conflict Resolution
   container.querySelectorAll('.resolve-conflict-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const id = e.currentTarget.dataset.id;
       const conflictEvt = combinedHistory.find(x => x.household_id === id && x.is_conflict);
       if (conflictEvt) {
-        openConflictModal(conflictEvt.local_data, conflictEvt.server_data);
+        await openConflictModal(conflictEvt.local_data, conflictEvt.server_data);
       }
     });
   });
 
-  function openConflictModal(local, server) {
+  async function openConflictModal(local, server) {
     const existing = document.getElementById('conflict-modal');
     if (existing) existing.remove();
+    
+    const localMembers = await db.household_members.where('household_id').equals(local.household_id).toArray();
+    const serverMembers = server.members || [];
+    
+    const localMembersList = localMembers.map(m => `<li>${escapeHtml(m.member_name)} (${escapeHtml(m.relationship)})</li>`).join('');
+    const serverMembersList = serverMembers.map(m => `<li>${escapeHtml(m.member_name)} (${escapeHtml(m.relationship)})</li>`).join('');
 
     const modalHtml = `
       <div id="conflict-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;">
-        <div class="card" style="position: relative; width: 90%; max-width: 400px; max-height: 90vh; overflow-y: auto;">
+        <div class="card" style="position: relative; width: 95%; max-width: 500px; max-height: 90vh; overflow-y: auto;">
           <button id="close-conflict-modal" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-tertiary); line-height: 1; padding: 0;">&times;</button>
           <div class="card-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 16px; padding-right: 24px;">
             <h3 style="color: var(--danger-color); margin: 0;">Sync Conflict Detected</h3>
           </div>
           <p class="text-sm text-muted" style="margin-bottom: 16px;">
-            <strong>HOUSEHOLD ${local.household_id.replace('TIBUCAG-HH-', '').replace(/^0+/, '')}</strong> was edited by someone else on the server after you last synced. Please review the differences below:
+            <strong>HOUSEHOLD ${local.household_id.replace('TIBUCAG-HH-', '').replace(/^0+/, '')}</strong> was edited by <strong>${escapeHtml(server.last_edited_by || 'Another User')}</strong> on the server after you last synced. Please review the differences below:
           </p>
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 24px;">
             <div style="background: var(--bg-hover); padding: 12px; border-radius: var(--radius-md);">
               <h4 style="font-size: 12px; margin-top: 0; margin-bottom: 8px; color: var(--text-secondary);">Your Local Edit</h4>
-              <ul style="font-size: 13px; padding-left: 16px; margin: 0; color: var(--text-primary);">
+              <ul style="font-size: 13px; padding-left: 16px; margin: 0; color: var(--text-primary); margin-bottom: 12px;">
                 <li>Head: ${escapeHtml(local.household_head)}</li>
-                <li>Members: ${local.member_count}</li>
+                <li>Members count: ${local.member_count}</li>
                 <li>4Ps: ${local.fourps ? 'Yes' : 'No'}</li>
                 <li>Solar: ${local.solar ? 'Yes' : 'No'}</li>
+              </ul>
+              <strong style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Members List:</strong>
+              <ul style="font-size: 12px; padding-left: 16px; margin-top: 4px; color: var(--text-primary);">
+                ${localMembersList || '<li>None</li>'}
               </ul>
             </div>
             <div style="background: var(--bg-secondary); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
               <h4 style="font-size: 12px; margin-top: 0; margin-bottom: 8px; color: var(--text-secondary);">Server Version</h4>
-              <ul style="font-size: 13px; padding-left: 16px; margin: 0; color: var(--text-primary);">
+              <ul style="font-size: 13px; padding-left: 16px; margin: 0; color: var(--text-primary); margin-bottom: 12px;">
                 <li>Head: ${escapeHtml(server.household_head)}</li>
-                <li>Members: ${server.member_count}</li>
+                <li>Members count: ${server.member_count}</li>
                 <li>4Ps: ${server.fourps ? 'Yes' : 'No'}</li>
                 <li>Solar: ${server.solar ? 'Yes' : 'No'}</li>
+              </ul>
+              <strong style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Members List:</strong>
+              <ul style="font-size: 12px; padding-left: 16px; margin-top: 4px; color: var(--text-primary);">
+                ${serverMembersList || '<li>None</li>'}
               </ul>
             </div>
           </div>
@@ -420,13 +434,22 @@ export async function renderHouseholdsPanel(container) {
         member_count: server.member_count,
         fourps: server.fourps,
         solar: server.solar,
+        solar: server.solar,
         gps_lat: server.gps_lat,
         gps_lng: server.gps_lng,
+        server_updated_at: server.server_updated_at,
+        last_edited_by: server.last_edited_by,
         dynamic_dropdowns: server.dynamic_dropdowns || {},
         dynamic_texts: server.dynamic_texts || {},
         needs_sync: 0,
         conflict_data: null
       });
+      
+      // Update local members to match server's
+      if (server.members) {
+        await updateHouseholdMembers(local.household_id, server.members);
+      }
+      
       document.getElementById('conflict-modal').remove();
       renderHouseholdsPanel(container);
     });

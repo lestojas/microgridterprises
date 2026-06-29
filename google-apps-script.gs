@@ -86,14 +86,29 @@ function doGet(e) {
           
           let dynamic_dropdowns = {};
           let dynamic_texts = {};
+          let server_updated_at = '';
+          let last_edited_by = 'Another User';
           // Start from index 9 (Column J)
           for (let c = 9; c < numCols; c++) {
+            const h = getHeaderName(c);
+            const lowerH = h.toLowerCase();
+            
+            if (lowerH.includes('date & time updated') || lowerH.includes('timestamp')) {
+              if (row[c] instanceof Date) {
+                server_updated_at = Utilities.formatDate(row[c], Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss");
+              } else {
+                server_updated_at = String(row[c] || '').trim();
+              }
+            }
+            if (lowerH.includes('last edited by')) {
+              last_edited_by = String(row[c] || '').trim() || 'Another User';
+            }
+            
             const toggle = String(toggleRow[c] || '').trim().toLowerCase();
             if (toggle !== 'shown in app') continue;
             
-            const h = getHeaderName(c);
-            const lowerH = h.toLowerCase();
-            if (lowerH.includes('date & time updated') || lowerH.includes('timestamp')) continue;
+            if (lowerH.includes('date & time updated') || lowerH.includes('timestamp') || lowerH.includes('last edited by')) continue;
+            
             if (h !== '' && !h.startsWith('Column ')) {
               if (isDropdown[c]) {
                 dynamic_dropdowns[h] = String(row[c] || '').trim();
@@ -112,6 +127,8 @@ function doGet(e) {
             solar:          parseBool(row[6]),
             gps_lat:        parseFloat(row[7]) || 0,
             gps_lng:        parseFloat(row[8]) || 0,
+            server_updated_at: server_updated_at,
+            last_edited_by: last_edited_by,
             dynamic_dropdowns: dynamic_dropdowns,
             dynamic_texts: dynamic_texts
           });
@@ -229,12 +246,15 @@ function doPost(e) {
         const headerRow1 = hhSheet.getRange(2, 1, 1, numCols).getValues()[0];
         const headerRow2 = hhSheet.getRange(3, 1, 1, numCols).getValues()[0];
         let timestampColIdx = 9; // Default to J
+        let lastEditedByColIdx = -1;
         for (let c = 9; c < numCols; c++) {
           let h = String(headerRow2[c] || '').trim() || String(headerRow1[c] || '').trim();
           if (h.toLowerCase().includes('date & time updated') || 
               h.toLowerCase().includes('timestamp')) {
             timestampColIdx = c;
-            break;
+          }
+          if (h.toLowerCase().includes('last edited by')) {
+            lastEditedByColIdx = c;
           }
         }
         
@@ -248,6 +268,9 @@ function doPost(e) {
           newRowData[7] = hh.gps_lat || '';
           newRowData[8] = hh.gps_lng || '';
           newRowData[timestampColIdx] = syncTimestamp;
+          if (lastEditedByColIdx !== -1) {
+            newRowData[lastEditedByColIdx] = payload.user_name || 'Online User';
+          }
           
           hhSheet.appendRow(newRowData);
           householdsAdded++;
@@ -267,6 +290,7 @@ function doPost(e) {
         const baseDate = payload.base_timestamp ? new Date(payload.base_timestamp).getTime() : 0;
         
         let timestampColIdx = 9;
+        let lastEditedByColIdx = -1;
         const headerToColIdx = {};
         for (let c = 9; c < numCols; c++) {
           const h2 = String(data[2] && data[2][c] || '').trim();
@@ -279,6 +303,9 @@ function doPost(e) {
           if (headerName.toLowerCase().includes('date & time updated') || 
               headerName.toLowerCase().includes('timestamp')) {
             timestampColIdx = c;
+          }
+          if (headerName.toLowerCase().includes('last edited by')) {
+            lastEditedByColIdx = c;
           }
         }
         
@@ -300,23 +327,20 @@ function doPost(e) {
           const { hh, rowIndex } = update;
           const i = rowIndex;
           
-          const serverDateStr = data[i][timestampColIdx];
-          let serverDate = 0;
-          if (serverDateStr) {
-            let ds = "";
-            if (serverDateStr instanceof Date) {
-              ds = Utilities.formatDate(serverDateStr, Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss");
+          const serverDateVal = data[i][timestampColIdx];
+          let serverDateStr = "";
+          if (serverDateVal) {
+            if (serverDateVal instanceof Date) {
+              serverDateStr = Utilities.formatDate(serverDateVal, Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss");
             } else {
-              ds = String(serverDateStr).trim();
+              serverDateStr = String(serverDateVal).trim();
             }
-            if (!ds.includes('GMT') && !ds.includes('Z')) {
-              ds += " GMT+0800";
-            }
-            serverDate = new Date(ds).getTime();
           }
           
-          // Check for conflict: Server has newer data and client is not force-pushing
-          if (serverDate > 0 && baseDate > 0 && serverDate > baseDate && !hh.force_push) {
+          // Check for conflict: Server timestamp string doesn't match client's base string
+          const clientDateStr = String(hh.server_updated_at || '').trim();
+          
+          if (clientDateStr !== "" && serverDateStr !== "" && clientDateStr !== serverDateStr && !hh.force_push) {
             
             let dynamic_dropdowns = {};
             let dynamic_texts = {};
@@ -342,6 +366,23 @@ function doPost(e) {
               }
             }
 
+            // Build server members array
+            const serverMembers = [];
+            let endRow = i + 1;
+            while (endRow < data.length && String(data[endRow][0]).trim() === '') {
+              endRow++;
+            }
+            for (let r = i; r < endRow; r++) {
+              const memberName = String(data[r][2]).trim();
+              if (memberName) {
+                serverMembers.push({
+                   member_id: hh.household_id + '-M' + String(serverMembers.length + 1).padStart(2, '0'),
+                   member_name: memberName,
+                   relationship: String(data[r][3]).trim()
+                });
+              }
+            }
+
             conflicts.push({
               household_id: hh.household_id,
               house_number: data[i][0],
@@ -351,6 +392,9 @@ function doPost(e) {
               solar: String(data[i][6]).trim().toLowerCase() === 'yes',
               gps_lat: data[i][7],
               gps_lng: data[i][8],
+              server_updated_at: serverDateStr,
+              last_edited_by: lastEditedByColIdx !== -1 ? String(data[i][lastEditedByColIdx] || '').trim() || 'Another User' : 'Another User',
+              members: serverMembers,
               dynamic_dropdowns,
               dynamic_texts
             });
@@ -365,6 +409,9 @@ function doPost(e) {
           hhSheet.getRange(i + 1, 8).setValue(hh.gps_lat || '');         // H
           hhSheet.getRange(i + 1, 9).setValue(hh.gps_lng || '');         // I
           hhSheet.getRange(i + 1, timestampColIdx + 1).setValue(syncTimestamp); // Timestamp col
+          if (lastEditedByColIdx !== -1) {
+            hhSheet.getRange(i + 1, lastEditedByColIdx + 1).setValue(payload.user_name || 'Online User');
+          }
           
           // Apply dynamic fields
           if (hh.dynamic_texts) {
