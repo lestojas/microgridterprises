@@ -70,13 +70,11 @@ export async function pullMasterData(url) {
   await db.transaction('rw', db.households, db.household_members, db.authorized_users, db.inspection_events, async () => {
     // Clear existing static data
     // Don't overwrite households that currently have a conflict pending resolution
-    const localConflicts = await db.conflict_queue.toArray();
-    const conflictedIds = new Set(localConflicts.map(c => c.household_id));
-
     // We must PRESERVE the local version of conflicted households and members!
     // Since we are clearing the tables, fetch the local versions first.
     const existingLocalHouseholds = await db.households.toArray();
-    const localConflictedHouseholds = existingLocalHouseholds.filter(h => conflictedIds.has(h.household_id));
+    const localConflictedHouseholds = existingLocalHouseholds.filter(h => h.needs_sync === 1 && h.conflict_data);
+    const conflictedIds = new Set(localConflictedHouseholds.map(c => c.household_id));
     
     const serverHouseholdsToBulkAdd = data.households.filter(h => !conflictedIds.has(h.household_id));
     const householdsToBulkAdd = [...serverHouseholdsToBulkAdd, ...localConflictedHouseholds];
@@ -103,11 +101,7 @@ export async function pullMasterData(url) {
     // Clear locally synced events, preserving offline unsynced ones
     await db.inspection_events.where('is_synced').equals(1).delete();
 
-    // Insert new data
-    // (Households are already inserted above)
-    if (data.members && data.members.length > 0) {
-      await db.household_members.bulkAdd(data.members);
-    }
+    // (Households and members are already inserted above)
     if (data.authorized_users && data.authorized_users.length > 0) {
       await db.authorized_users.bulkAdd(data.authorized_users);
     }
